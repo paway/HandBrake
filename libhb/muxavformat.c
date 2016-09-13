@@ -1161,14 +1161,8 @@ static int avformatMux(hb_mux_object_t *m, hb_mux_data_t *track, hb_buffer_t *bu
     pkt.pts = pts;
     pkt.duration = duration;
 
-    if (track->type == MUX_TYPE_VIDEO && ((job->vcodec & HB_VCODEC_H264_MASK) ||
-                                          (job->vcodec & HB_VCODEC_H265_MASK) ||
-                                          (job->vcodec & HB_VCODEC_FFMPEG_MASK)))
-    {
-        if (buf->s.frametype == HB_FRAME_IDR)
-            pkt.flags |= AV_PKT_FLAG_KEY;
-    }
-    else if (buf->s.frametype & HB_FRAME_KEY)
+    if ((buf->s.frametype == HB_FRAME_IDR) ||
+        (buf->s.frametype  & HB_FRAME_KEY))
     {
         pkt.flags |= AV_PKT_FLAG_KEY;
     }
