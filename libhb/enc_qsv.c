@@ -1632,7 +1632,40 @@ static void qsv_bitstream_slurp(hb_work_private_t *pv, mfxBitstream *bs)
     bs->DataLength = bs->DataOffset = 0;
     bs->MaxLength  = pv->job->qsv.ctx->enc_space->p_buf_max_size;
 
+    hb_log("qsv_bitstream_slurp: frame type 0x%04x", bs->FrameType);//debug
     buf->s.frametype = hb_qsv_frametype_xlat(bs->FrameType, &buf->s.flags);
+    if ((pv->param.videoParam->mfx.CodecId == MFX_CODEC_HEVC) &&
+        (bs->FrameType & (MFX_FRAMETYPE_I|MFX_FRAMETYPE_REF)))
+    {
+        // all RAP (random access point) pictures are to be considered keyframes
+        // libavcodec/hevc.h: IS_IRAP(s) (nalu_type >= 16 && nalu_type <= 23)
+        size_t   len = buf->size;
+        uint8_t *tmp = buf->data;
+        uint8_t *end = tmp + len;
+        while ((tmp = hb_annexb_find_next_nalu(tmp, &len)) != NULL)
+        {
+            switch ((tmp[0] >> 1) & 0x3f)
+            {
+                case 16: // BLA
+                case 17: // BLA
+                case 18: // BLA
+                case 19: // IDR
+                case 20: // IDR
+                case 21: // CRA
+                case 22: // reserved?
+                case 23: // reserved?
+                    buf->s.flags |= HB_FRAME_KEY;
+                    break;
+                default:
+                    len = end - tmp;
+                    continue;
+            }
+            if (buf->s.flags & HB_FRAME_KEY)
+            {
+                break;
+            }
+        }
+    }
     buf->s.start     = buf->s.renderOffset = bs->TimeStamp;
     buf->s.stop      = buf->s.start + get_frame_duration(pv, buf);
     buf->s.duration  = buf->s.stop  - buf->s.start;
@@ -1686,7 +1719,8 @@ static void qsv_bitstream_slurp(hb_work_private_t *pv, mfxBitstream *bs)
      * If we have a chapter marker pending and this frame's PTS
      * is at or after the marker's PTS, use it as the chapter start.
      */
-    if (qsv_frame_is_key(bs->FrameType))
+    if ((buf->s.frametype == HB_FRAME_IDR) ||
+        (buf->s.flags      & HB_FRAME_KEY))
     {
         hb_chapter_dequeue(pv->chapter_queue, buf);
     }

@@ -1165,6 +1165,7 @@ static int avformatMux(hb_mux_object_t *m, hb_mux_data_t *track, hb_buffer_t *bu
         (buf->s.frametype  & HB_FRAME_KEY))
     {
         pkt.flags |= AV_PKT_FLAG_KEY;
+        if (track->type == MUX_TYPE_VIDEO) hb_log("avformatMux: video keyframe :-)");//debug
     }
 
     switch (track->type)
